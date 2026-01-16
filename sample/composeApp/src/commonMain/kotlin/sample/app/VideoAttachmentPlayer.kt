@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeOff
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
+import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -212,6 +213,15 @@ fun VideoAttachmentPlayerScreen() {
                         onCheckedChange = { viewModel.toggleVolume(it) }
                     )
                 }
+            }
+        }
+        item {
+            val pipController = remember { PipController() }
+            Button(onClick = {
+                pipController.enterPip()
+            }) {
+                Icon(Icons.Default.PictureInPicture, contentDescription = "Enter PiP")
+                Text("Enter PiP")
             }
         }
     }

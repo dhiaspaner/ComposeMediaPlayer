@@ -1,12 +1,18 @@
 package io.github.kdroidfilter.composemediaplayer
 
+import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.util.Rational
 import androidx.annotation.OptIn
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -33,6 +39,7 @@ import io.github.kdroidfilter.composemediaplayer.util.formatTime
 import io.github.vinceglb.filekit.AndroidFile
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.*
+import java.lang.ref.WeakReference
 
 @OptIn(UnstableApi::class)
 actual fun createVideoPlayerState(): VideoPlayerState =
@@ -245,6 +252,8 @@ open class DefaultVideoPlayerState: VideoPlayerState {
     override val positionText: String get() = formatTime(_currentTime)
     override val durationText: String get() = formatTime(_duration)
     override val currentTime: Double get() = _currentTime
+
+    override val pipController = PipController()
 
 
     init {
@@ -631,6 +640,10 @@ open class DefaultVideoPlayerState: VideoPlayerState {
             }
         }
     }
+
+    override fun enterPip() =
+       pipController.enterPip()
+
 
     override fun seekTo(value: Float) {
         if (_duration > 0 && !isPlayerReleased) {

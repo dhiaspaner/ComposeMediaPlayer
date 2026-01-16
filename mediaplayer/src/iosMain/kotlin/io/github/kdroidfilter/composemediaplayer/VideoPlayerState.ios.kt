@@ -22,6 +22,8 @@ import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.AVAudioSessionModeMoviePlayback
 import platform.AVFAudio.setActive
 import platform.AVFoundation.*
+import platform.AVKit.AVPictureInPictureController
+import platform.AVKit.AVPictureInPictureControllerDelegateProtocol
 import platform.CoreGraphics.CGFloat
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
@@ -117,6 +119,23 @@ open class DefaultVideoPlayerState: VideoPlayerState {
     var playerLayer: AVPlayerLayer? by mutableStateOf(null)
         internal set
 
+
+
+    override val pipController = PipController()
+
+
+    private val pipDelegate = object : NSObject(), AVPictureInPictureControllerDelegateProtocol {
+        override fun pictureInPictureControllerDidStartPictureInPicture(pictureInPictureController: AVPictureInPictureController) {
+            _isPip = true
+        }
+
+        override fun pictureInPictureControllerDidStopPictureInPicture(pictureInPictureController: AVPictureInPictureController) {
+            _isPip = false
+        }
+    }
+
+    private var _isPip by mutableStateOf(false)
+
     // Periodic observer for position updates (≈60 fps)
     private var timeObserverToken: Any? = null
 
@@ -205,6 +224,14 @@ open class DefaultVideoPlayerState: VideoPlayerState {
                 }
             }
         )
+    }
+
+    override fun enterPip() {
+        println("is pipController null ${pipController == null}")
+        println("is isPictureInPicturePossible ${pipController.pipController?.isPictureInPicturePossible() == true}")
+       if (pipController.pipController?.isPictureInPicturePossible() == true) {
+           pipController.pipController?.startPictureInPicture()
+       }
     }
 
     private fun setupObservers(player: AVPlayer, item: AVPlayerItem) {

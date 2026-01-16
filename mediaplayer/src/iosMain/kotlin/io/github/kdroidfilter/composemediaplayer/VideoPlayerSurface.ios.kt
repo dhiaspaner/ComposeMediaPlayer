@@ -14,21 +14,17 @@ import co.touchlab.kermit.Logger
 import io.github.kdroidfilter.composemediaplayer.subtitle.ComposeSubtitleLayer
 import io.github.kdroidfilter.composemediaplayer.util.toCanvasModifier
 import io.github.kdroidfilter.composemediaplayer.util.toTimeMs
-import kotlinx.cinterop.BetaInteropApi
-import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.ObjCClass
 import kotlinx.cinterop.cValue
 import platform.AVFoundation.AVLayerVideoGravityResize
 import platform.AVFoundation.AVLayerVideoGravityResizeAspect
 import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
-import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerLayer
+import platform.AVKit.AVPictureInPictureController
 import platform.CoreGraphics.CGRect
-import platform.Foundation.NSCoder
+import platform.QuartzCore.CATransaction
 import platform.UIKit.UIColor
 import platform.UIKit.UIView
-import platform.UIKit.UIViewMeta
 
 @OptIn(ExperimentalForeignApi::class)
 @Composable
@@ -39,7 +35,14 @@ actual fun VideoPlayerSurface(
     overlay: @Composable () -> Unit
 ) {
     // Set pauseOnDispose to false to prevent pausing during screen rotation
-    VideoPlayerSurfaceImpl(playerState, modifier, contentScale, overlay, isInFullscreenView = false, pauseOnDispose = false)
+    VideoPlayerSurfaceImpl(
+        playerState,
+        modifier,
+        contentScale,
+        overlay,
+        isInFullscreenView = false,
+        pauseOnDispose = false
+    )
 }
 
 @OptIn(ExperimentalForeignApi::class)
@@ -80,45 +83,53 @@ fun VideoPlayerSurfaceImpl(
                     height = playerState.metadata.height
                 ),
                 factory = {
-                    PlayerUIView(frame = cValue<CGRect>()).apply {
-                        player = currentPlayer
-                        backgroundColor = UIColor.blackColor
-                        clipsToBounds = true
+                    val playerLayer = AVPlayerLayer()
+                    playerLayer.player = currentPlayer
 
-                        (playerState as? DefaultVideoPlayerState)?.playerLayer = layer as? AVPlayerLayer
+                    (playerState as? DefaultVideoPlayerState)?.let { state ->
+                        state.playerLayer = playerLayer
+                        state.pipController?.pipController = AVPictureInPictureController(playerLayer = playerLayer)
+                    }
+
+                    PlayerContainerView(playerLayer).apply {
+                        backgroundColor = UIColor.blackColor
                     }
                 },
-                update = { playerView ->
-                    playerView.player = currentPlayer
+                update = { view ->
 
-                    // Hide or show the view depending on the presence of media
-                    playerView.hidden = !playerState.hasMedia
+                    view.playerLayer.player = currentPlayer
+                    view.hidden = !playerState.hasMedia
 
-                    // Update the videoGravity when contentScale changes
                     val videoGravity = when (contentScale) {
                         ContentScale.Crop,
-                        ContentScale.FillHeight -> AVLayerVideoGravityResizeAspectFill   // ⬅️ changement
-                        ContentScale.FillWidth -> AVLayerVideoGravityResizeAspectFill   // (même logique)
-                        ContentScale.FillBounds -> AVLayerVideoGravityResize             // pas d’aspect-ratio
+                        ContentScale.FillHeight -> AVLayerVideoGravityResizeAspectFill
+
+                        ContentScale.FillWidth -> AVLayerVideoGravityResizeAspectFill
+                        ContentScale.FillBounds -> AVLayerVideoGravityResize
                         ContentScale.Fit,
                         ContentScale.Inside -> AVLayerVideoGravityResizeAspect
 
                         else -> AVLayerVideoGravityResizeAspect
                     }
-                    playerView.videoGravity = videoGravity
+                    view.playerLayer.videoGravity = videoGravity
+
+                    view.updateLayerFrame()
 
                     Logger.d { "View configured with contentScale: $contentScale, videoGravity: $videoGravity" }
+
                 },
-                onRelease = { playerView ->
-                    playerView.player = null
+                onRelease = { view ->
+                    if (view is PlayerContainerView) {
+                        view.playerLayer.player = null
+                    }
                 }
             )
 
             // Add Compose-based subtitle layer
             if (playerState.subtitlesEnabled && playerState.currentSubtitleTrack != null) {
                 // Calculate current time in milliseconds
-                val currentTimeMs = (playerState.sliderPos / 1000f * 
-                    playerState.durationText.toTimeMs()).toLong()
+                val currentTimeMs = (playerState.sliderPos / 1000f *
+                        playerState.durationText.toTimeMs()).toLong()
 
                 // Calculate duration in milliseconds
                 val durationMs = playerState.durationText.toTimeMs()
@@ -151,25 +162,21 @@ fun VideoPlayerSurfaceImpl(
     }
 }
 
-@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-private class PlayerUIView : UIView {
-    companion object : UIViewMeta() {
-        override fun layerClass(): ObjCClass = AVPlayerLayer
+@OptIn(ExperimentalForeignApi::class)
+private class PlayerContainerView(val playerLayer: AVPlayerLayer) : UIView(frame = cValue<CGRect>()) {
+    init {
+        layer.addSublayer(playerLayer)
     }
 
-    constructor(frame: CValue<CGRect>) : super(frame)
-    constructor(coder: NSCoder) : super(coder)
+    override fun layoutSubviews() {
+        super.layoutSubviews()
+        updateLayerFrame()
+    }
 
-    var player: AVPlayer?
-        get() = (layer as? AVPlayerLayer)?.player
-        set(value) {
-            (layer as? AVPlayerLayer)?.player = value
-        }
-
-    var videoGravity: String?
-        get() = (layer as? AVPlayerLayer)?.videoGravity
-        set(value) {
-            (layer as? AVPlayerLayer)?.videoGravity = value
-        }
+    fun updateLayerFrame() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        playerLayer.frame = bounds
+        CATransaction.commit()
+    }
 }
-

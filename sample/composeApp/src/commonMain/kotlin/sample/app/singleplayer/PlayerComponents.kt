@@ -302,6 +302,8 @@ fun PrimaryControls(
         ) {
             Icon(Icons.Default.AspectRatio, contentDescription = "Content Scale")
         }
+
+
     }
 }
 

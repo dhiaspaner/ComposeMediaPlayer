@@ -92,11 +92,15 @@ interface VideoPlayerState {
      */
     fun stop()
 
+    fun enterPip() = Unit
+
     /**
      * Seeks to a specific playback position based on the provided normalized value.
      */
     fun seekTo(value: Float)
     fun toggleFullscreen()
+
+    val pipController: PipController
 
     // Functions to manage media sources
     /**
@@ -179,6 +183,7 @@ data class PreviewableVideoPlayerState(
     override val availableSubtitleTracks: MutableList<SubtitleTrack> = emptyList<SubtitleTrack>().toMutableList(),
     override var subtitleTextStyle: TextStyle = TextStyle.Default,
     override var subtitleBackgroundColor: Color = Color.Transparent,
+    override val pipController: PipController = PipController()
 ) : VideoPlayerState {
     override fun play() {}
     override fun pause() {}
