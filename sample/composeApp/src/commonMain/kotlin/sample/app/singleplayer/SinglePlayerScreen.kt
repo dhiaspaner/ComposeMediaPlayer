@@ -126,11 +126,6 @@ private fun SinglePlayerScreenCore(playerState: VideoPlayerState) {
 
         val isPipState by playerState.pipController.isInPipMode.collectAsState()
 
-        LaunchedEffect(isPipState) {
-            println("is pip mode $isPipState")
-        }
-
-
 //        BoxWithConstraints(
 //            modifier = Modifier
 //                .fillMaxSize()

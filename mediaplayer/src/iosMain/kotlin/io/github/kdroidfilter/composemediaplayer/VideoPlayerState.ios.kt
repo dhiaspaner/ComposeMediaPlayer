@@ -227,8 +227,6 @@ open class DefaultVideoPlayerState: VideoPlayerState {
     }
 
     override fun enterPip() {
-        println("is pipController null ${pipController == null}")
-        println("is isPictureInPicturePossible ${pipController.pipController?.isPictureInPicturePossible() == true}")
        if (pipController.pipController?.isPictureInPicturePossible() == true) {
            pipController.pipController?.startPictureInPicture()
        }
