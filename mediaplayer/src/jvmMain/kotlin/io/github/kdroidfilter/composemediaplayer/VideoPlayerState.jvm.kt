@@ -37,6 +37,8 @@ actual fun createVideoPlayerState(): VideoPlayerState = DefaultVideoPlayerState(
  */
 @Stable
 open class DefaultVideoPlayerState: VideoPlayerState {
+
+    override lateinit var pipController: PipController
     val delegate: VideoPlayerState = when {
         Platform.isWindows() -> WindowsVideoPlayerState()
         Platform.isMac() -> MacVideoPlayerState()

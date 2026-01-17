@@ -35,6 +35,7 @@ import org.freedesktop.gstreamer.event.SeekFlags
 import org.freedesktop.gstreamer.event.SeekType
 import org.freedesktop.gstreamer.message.MessageType
 import com.sun.jna.Pointer
+import io.github.kdroidfilter.composemediaplayer.PipController
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
@@ -58,6 +59,8 @@ import kotlin.math.pow
  */
 @Stable
 class LinuxVideoPlayerState : VideoPlayerState {
+
+    override lateinit var pipController: PipController
 
     companion object {
         // Flag to enable text subtitles (GST_PLAY_FLAG_TEXT)
@@ -908,7 +911,7 @@ class LinuxVideoPlayerState : VideoPlayerState {
             }
 
             // Single memory copy: GStreamer buffer → Skia bitmap
-            val dstRowBytes = pixmap.rowBytes.toInt()
+            val dstRowBytes = pixmap.rowBytes
             val dstSizeBytes = dstRowBytes.toLong() * height.toLong()
             val dstBuffer = Pointer(pixelsAddr).getByteBuffer(0, dstSizeBytes)
 

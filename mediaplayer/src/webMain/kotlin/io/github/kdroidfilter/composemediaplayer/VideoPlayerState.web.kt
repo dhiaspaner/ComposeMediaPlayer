@@ -35,6 +35,8 @@ actual fun createVideoPlayerState(): VideoPlayerState = DefaultVideoPlayerState(
 @Stable
 open class DefaultVideoPlayerState: VideoPlayerState {
 
+    override lateinit var pipController: PipController
+
     // Variable to store the last opened URI for potential replay
     private var lastUri: String? = null
 

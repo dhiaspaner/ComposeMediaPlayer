@@ -21,6 +21,7 @@ import com.sun.jna.ptr.IntByReference
 import com.sun.jna.ptr.LongByReference
 import com.sun.jna.ptr.PointerByReference
 import io.github.kdroidfilter.composemediaplayer.InitialPlayerState
+import io.github.kdroidfilter.composemediaplayer.PipController
 import io.github.kdroidfilter.composemediaplayer.SubtitleTrack
 import io.github.kdroidfilter.composemediaplayer.VideoMetadata
 import io.github.kdroidfilter.composemediaplayer.VideoPlayerError
@@ -72,7 +73,9 @@ internal val windowsLogger = Logger.withTag("WindowsVideoPlayerState")
  * Windows implementation of the video player state.
  * Handles media playback using Media Foundation on Windows platform.
  */
-class WindowsVideoPlayerState : VideoPlayerState {
+class WindowsVideoPlayerState() : VideoPlayerState {
+
+    override lateinit var pipController: PipController
     companion object {
         private val isMfBootstrapped = AtomicBoolean(false)
 

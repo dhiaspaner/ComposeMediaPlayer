@@ -13,6 +13,7 @@ import co.touchlab.kermit.Logger.Companion.setMinSeverity
 import co.touchlab.kermit.Severity
 import com.sun.jna.Pointer
 import io.github.kdroidfilter.composemediaplayer.InitialPlayerState
+import io.github.kdroidfilter.composemediaplayer.PipController
 import io.github.kdroidfilter.composemediaplayer.VideoPlayerState
 import io.github.kdroidfilter.composemediaplayer.SubtitleTrack
 import io.github.kdroidfilter.composemediaplayer.VideoMetadata
@@ -45,6 +46,8 @@ internal val macLogger = Logger.withTag("MacVideoPlayerState")
  * All debug logs are handled with Kermit.
  */
 class MacVideoPlayerState : VideoPlayerState {
+
+    override lateinit var pipController: PipController
 
     // Main state variables
     private val mainMutex = Mutex()
