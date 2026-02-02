@@ -252,8 +252,18 @@ open class DefaultVideoPlayerState: VideoPlayerState {
             queue = null
         ) { _ ->
             if (_loop) {
-                player.seekToTime(CMTimeMakeWithSeconds(0.0, 1))
-                player.playImmediatelyAtRate(_playbackSpeed)
+                val zeroTime = CMTimeMake(0, 1)
+                player.seekToTime(
+                    time = CMTimeMakeWithSeconds(0.0, NSEC_PER_SEC.toInt()),
+                    toleranceBefore = zeroTime,
+                    toleranceAfter = zeroTime
+                ) { finished ->
+                    if (finished) {
+                        dispatch_async(dispatch_get_main_queue()) {
+                            player.playImmediatelyAtRate(_playbackSpeed)
+                        }
+                    }
+                }
             } else {
                 player.pause()
                 _isPlaying = false
