@@ -1,7 +1,12 @@
 package io.github.kdroidfilter.composemediaplayer
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.view.LayoutInflater
+import android.view.TextureView
+import android.view.View
+import androidx.activity.ComponentActivity
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -10,17 +15,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.coroutineScope
+import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -28,6 +37,11 @@ import io.github.kdroidfilter.composemediaplayer.subtitle.ComposeSubtitleLayer
 import io.github.kdroidfilter.composemediaplayer.util.FullScreenLayout
 import io.github.kdroidfilter.composemediaplayer.util.toCanvasModifier
 import io.github.kdroidfilter.composemediaplayer.util.toTimeMs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @UnstableApi
 @Composable
@@ -77,30 +91,23 @@ private fun VideoPlayerSurfaceInternal(
         VideoPlayerSurfacePreview(modifier = modifier, overlay = overlay)
         return
     }
-    // Use rememberSaveable to preserve fullscreen state across configuration changes
-    var isFullscreen by rememberSaveable {
-        mutableStateOf(playerState.isFullscreen)
-    }
 
-    // Keep the playerState.isFullscreen in sync with our saved state
-    LaunchedEffect(isFullscreen) {
-        if (playerState.isFullscreen != isFullscreen) {
-            playerState.isFullscreen = isFullscreen
+    // Single source of truth — no rememberSaveable, drive directly from playerState
+    val isFullscreen = playerState.isFullscreen
+
+    AutoPipEffect(playerState = playerState)
+
+    // Exit fullscreen when returning from PiP
+    LaunchedEffect(playerState.isPipActive) {
+        if (!playerState.isPipActive && playerState.isFullscreen) {
+            delay(300)
+            playerState.toggleFullscreen()
         }
     }
 
-    // Listen for changes from playerState.isFullscreen
-    LaunchedEffect(playerState.isFullscreen) {
-        if (isFullscreen != playerState.isFullscreen) {
-            isFullscreen = playerState.isFullscreen
-        }
-    }
-
-    // Nettoyer lorsque le composable est détruit
     DisposableEffect(playerState) {
         onDispose {
             try {
-                // Détacher la vue du player
                 if (playerState is DefaultVideoPlayerState)
                     playerState.attachPlayerView(null)
             } catch (e: Exception) {
@@ -110,18 +117,17 @@ private fun VideoPlayerSurfaceInternal(
     }
 
     if (isFullscreen) {
-        // Use FullScreenLayout for fullscreen mode
         FullScreenLayout(
             modifier = Modifier,
             onDismissRequest = {
-                isFullscreen = false
-                // Call playerState.toggleFullscreen() to ensure proper cleanup
-                playerState.toggleFullscreen()
+                playerState.toggleFullscreen() // single call, single source of truth
             }
         ) {
-            Box(modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+            ) {
                 VideoPlayerContent(
                     playerState = playerState,
                     modifier = Modifier.fillMaxHeight(),
@@ -132,7 +138,6 @@ private fun VideoPlayerSurfaceInternal(
             }
         }
     } else {
-        // Regular non-fullscreen display
         VideoPlayerContent(
             playerState = playerState,
             modifier = modifier,
@@ -187,7 +192,7 @@ private fun VideoPlayerContent(
                             resizeMode = mapContentScaleToResizeMode(contentScale)
 
                             // Désactiver la vue de sous-titres native car nous utilisons des sous-titres basés sur Compose
-                            subtitleView?.visibility = android.view.View.GONE
+                            subtitleView?.visibility = View.GONE
 
                         }
                     } catch (e: Exception) {
@@ -299,7 +304,7 @@ private fun createPlayerViewWithSurfaceType(
                     SurfaceType.TextureView -> {
                         // Utiliser TextureView si disponible
                         videoSurfaceView?.let { view ->
-                            if (view is android.view.TextureView) {
+                            if (view is TextureView) {
                                 androidVideoLogger.d { "Using TextureView" }
                             }
                         }
@@ -323,3 +328,33 @@ private fun createPlayerViewWithSurfaceType(
         }
     }
 }
+
+@Composable
+fun AutoPipEffect(
+    playerState: VideoPlayerState
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE && playerState.isPipEnabled) {
+                scope.coroutineContext[MonotonicFrameClock]?.let { monoticClock ->
+                    val activity = context as? ComponentActivity
+                    activity?.lifecycleScope?.launch(context = Dispatchers.Main + monoticClock) {
+                        playerState.enterPip()
+                    }
+                }
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+}
+
+

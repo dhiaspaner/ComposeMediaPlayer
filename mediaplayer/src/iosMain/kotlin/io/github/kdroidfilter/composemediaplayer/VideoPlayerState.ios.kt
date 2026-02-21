@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import co.touchlab.kermit.Logger
+import io.github.kdroidfilter.composemediaplayer.util.PipResult
 import io.github.kdroidfilter.composemediaplayer.util.formatTime
 import io.github.kdroidfilter.composemediaplayer.util.getUri
 import io.github.vinceglb.filekit.PlatformFile
@@ -23,7 +24,6 @@ import platform.AVFAudio.AVAudioSessionModeMoviePlayback
 import platform.AVFAudio.setActive
 import platform.AVFoundation.*
 import platform.AVKit.AVPictureInPictureController
-import platform.AVKit.AVPictureInPictureControllerDelegateProtocol
 import platform.CoreGraphics.CGFloat
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
@@ -49,7 +49,7 @@ import platform.darwin.dispatch_get_main_queue
 actual fun createVideoPlayerState(): VideoPlayerState = DefaultVideoPlayerState()
 
 @Stable
-open class DefaultVideoPlayerState: VideoPlayerState {
+open class DefaultVideoPlayerState : VideoPlayerState {
 
     // Base states
     private var _volume = mutableStateOf(1.0f)
@@ -110,6 +110,20 @@ open class DefaultVideoPlayerState: VideoPlayerState {
             _isFullscreen = value
         }
 
+    override val isPipSupported: Boolean
+        get() = AVPictureInPictureController.isPictureInPictureSupported()
+
+    private var _isPipEnabled by mutableStateOf(false)
+
+    override var isPipEnabled: Boolean
+        get() = _isPipEnabled
+        set(value) {
+            pipController?.setCanStartPictureInPictureAutomaticallyFromInline(value)
+            _isPipEnabled = value
+        }
+
+    override var isPipActive by mutableStateOf(false)
+
     override val error: VideoPlayerError? = null
 
     // Observable instance of AVPlayer
@@ -119,22 +133,7 @@ open class DefaultVideoPlayerState: VideoPlayerState {
     var playerLayer: AVPlayerLayer? by mutableStateOf(null)
         internal set
 
-
-
-    override val pipController = PipController()
-
-
-    private val pipDelegate = object : NSObject(), AVPictureInPictureControllerDelegateProtocol {
-        override fun pictureInPictureControllerDidStartPictureInPicture(pictureInPictureController: AVPictureInPictureController) {
-            _isPip = true
-        }
-
-        override fun pictureInPictureControllerDidStopPictureInPicture(pictureInPictureController: AVPictureInPictureController) {
-            _isPip = false
-        }
-    }
-
-    private var _isPip by mutableStateOf(false)
+    internal var pipController: AVPictureInPictureController? = null
 
     // Periodic observer for position updates (≈60 fps)
     private var timeObserverToken: Any? = null
@@ -149,10 +148,10 @@ open class DefaultVideoPlayerState: VideoPlayerState {
     // App lifecycle notification observers
     private var backgroundObserver: Any? = null
     private var foregroundObserver: Any? = null
-    
+
     // Flag to track if player was playing before going to background
     private var wasPlayingBeforeBackground: Boolean = false
-    
+
     // Flag to track if the state has been disposed
     private var isDisposed = false
 
@@ -178,7 +177,12 @@ open class DefaultVideoPlayerState: VideoPlayerState {
     private fun configureAudioSession() {
         val session = AVAudioSession.sharedInstance()
         try {
-            session.setCategory(AVAudioSessionCategoryPlayback, mode = AVAudioSessionModeMoviePlayback, options = 0u, error = null)
+            session.setCategory(
+                AVAudioSessionCategoryPlayback,
+                mode = AVAudioSessionModeMoviePlayback,
+                options = 0u,
+                error = null
+            )
             session.setActive(true, error = null)
         } catch (e: Exception) {
             Logger.e { "Failed to configure audio session: ${e.message}" }
@@ -226,10 +230,14 @@ open class DefaultVideoPlayerState: VideoPlayerState {
         )
     }
 
-    override fun enterPip() {
-       if (pipController.pipController?.isPictureInPicturePossible() == true) {
-           pipController.pipController?.startPictureInPicture()
-       }
+    override suspend fun enterPip(): PipResult {
+
+        if (!isPipSupported) return PipResult.NotSupported
+        if (!isPipEnabled) return PipResult.NotEnabled
+        pipController?.setCanStartPictureInPictureAutomaticallyFromInline(true)
+        pipController?.startPictureInPicture()
+        isPipActive = true
+        return PipResult.Success
     }
 
     private fun setupObservers(player: AVPlayer, item: AVPlayerItem) {
@@ -318,7 +326,7 @@ open class DefaultVideoPlayerState: VideoPlayerState {
             Logger.d { "App entered background (screen locked)" }
             // Store current playing state before background
             wasPlayingBeforeBackground = _isPlaying
-            
+
             // If player is paused by the system, update our state to match
             player?.let { player ->
                 if (player.rate == 0.0f) {
@@ -327,7 +335,7 @@ open class DefaultVideoPlayerState: VideoPlayerState {
                 }
             }
         }
-        
+
         // Add observer for when app comes to foreground (screen unlock)
         foregroundObserver = NSNotificationCenter.defaultCenter.addObserverForName(
             name = UIApplicationWillEnterForegroundNotification,
@@ -346,16 +354,16 @@ open class DefaultVideoPlayerState: VideoPlayerState {
                 }
             }
         }
-        
+
         Logger.d { "App lifecycle observers set up" }
     }
-    
+
     private fun removeAppLifecycleObservers() {
         backgroundObserver?.let {
             NSNotificationCenter.defaultCenter.removeObserver(it)
             backgroundObserver = null
         }
-        
+
         foregroundObserver?.let {
             NSNotificationCenter.defaultCenter.removeObserver(it)
             foregroundObserver = null
@@ -485,7 +493,7 @@ open class DefaultVideoPlayerState: VideoPlayerState {
 
             // Create player item from asset to get more accurate metadata
             val playerItem = AVPlayerItem(asset)
-            val durationSeconds  = CMTimeGetSeconds(playerItem.duration)
+            val durationSeconds = CMTimeGetSeconds(playerItem.duration)
             if (durationSeconds > 0 && !durationSeconds.isNaN()) {
                 _metadata.duration = (durationSeconds * 1000).toLong()
             }

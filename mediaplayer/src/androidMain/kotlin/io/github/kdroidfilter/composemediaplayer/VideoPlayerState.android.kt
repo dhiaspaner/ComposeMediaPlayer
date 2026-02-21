@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.util.Rational
 import androidx.annotation.OptIn
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -18,6 +19,7 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -35,10 +37,12 @@ import androidx.media3.ui.PlayerView
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import com.kdroid.androidcontextprovider.ContextProvider
+import io.github.kdroidfilter.composemediaplayer.util.PipResult
 import io.github.kdroidfilter.composemediaplayer.util.formatTime
 import io.github.vinceglb.filekit.AndroidFile
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.*
+import kotlinx.coroutines.android.awaitFrame
 import java.lang.ref.WeakReference
 
 @OptIn(UnstableApi::class)
@@ -82,7 +86,24 @@ internal val androidVideoLogger = Logger.withTag("AndroidVideoPlayerSurface")
 
 @UnstableApi
 @Stable
-open class DefaultVideoPlayerState: VideoPlayerState {
+open class DefaultVideoPlayerState : VideoPlayerState {
+    companion object {
+        var activity: WeakReference<Activity> = WeakReference(null)
+
+        private var currentPlayerState: WeakReference<DefaultVideoPlayerState>? = null
+
+        /**
+         * Call this from Activity.onPictureInPictureModeChanged()
+         */
+        fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+            currentPlayerState?.get()?.isPipActive = isInPictureInPictureMode
+        }
+
+        internal fun register(state: DefaultVideoPlayerState) {
+            currentPlayerState = WeakReference(state)
+        }
+    }
+
     private val context: Context = ContextProvider.getContext()
     internal var exoPlayer: ExoPlayer? = null
     private var updateJob: Job? = null
@@ -238,6 +259,7 @@ open class DefaultVideoPlayerState: VideoPlayerState {
     private var _aspectRatio by mutableFloatStateOf(16f / 9f)
     override val aspectRatio: Float get() = _aspectRatio
 
+
     // Fullscreen state
     private var _isFullscreen by mutableStateOf(false)
     override var isFullscreen: Boolean
@@ -253,10 +275,21 @@ open class DefaultVideoPlayerState: VideoPlayerState {
     override val durationText: String get() = formatTime(_duration)
     override val currentTime: Double get() = _currentTime
 
-    override val pipController = PipController()
+    override val isPipSupported: Boolean
+        get() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val ctx = activity.get() ?: ContextProvider.getContext()
+                return ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+            }
+            return false
+        }
+
+    override var isPipEnabled by mutableStateOf(false)
+    override var isPipActive by mutableStateOf(false)
 
 
     init {
+        register(this)
         audioProcessor.setOnAudioLevelUpdateListener { left, right ->
             _leftLevel = left
             _rightLevel = right
@@ -304,6 +337,7 @@ open class DefaultVideoPlayerState: VideoPlayerState {
                             }
                         }
                     }
+
                     Intent.ACTION_SCREEN_ON -> {
                         androidVideoLogger.d { "Screen turned on (unlocked)" }
                         synchronized(playerInitializationLock) {
@@ -467,14 +501,17 @@ open class DefaultVideoPlayerState: VideoPlayerState {
                     // Tenter une récupération pour les erreurs de codec
                     attemptPlayerRecovery()
                 }
+
                 PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
                 PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> {
                     _error = VideoPlayerError.NetworkError("Network error: ${error.message}")
                 }
+
                 PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE,
                 PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
                     _error = VideoPlayerError.SourceError("Invalid media source: ${error.message}")
                 }
+
                 else -> {
                     _error = VideoPlayerError.UnknownError("Playback error: ${error.message}")
                 }
@@ -641,9 +678,39 @@ open class DefaultVideoPlayerState: VideoPlayerState {
         }
     }
 
-    override fun enterPip() =
-       pipController.enterPip()
 
+    override suspend fun enterPip(): PipResult {
+        if (!isPipSupported) return PipResult.NotSupported
+        if (!isPipEnabled) return PipResult.NotEnabled
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return PipResult.NotPossible
+
+        val currentActivity = activity.get() ?: return PipResult.NotPossible
+
+        if (!isFullscreen) {
+            toggleFullscreen()
+            // Wait for Compose to recompose with fullscreen layout
+            withFrameNanos { }
+            withFrameNanos { } // two frames to be safe
+        }
+
+        val params = PictureInPictureParams.Builder()
+            .setAspectRatio(Rational(16, 9))
+            .apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setAutoEnterEnabled(true)
+                }
+            }
+            .build()
+
+        val result = currentActivity.enterPictureInPictureMode(params)
+
+        return if (result) {
+            isPipActive = true
+            PipResult.Success
+        } else {
+            PipResult.NotPossible
+        }
+    }
 
     override fun seekTo(value: Float) {
         if (_duration > 0 && !isPlayerReleased) {

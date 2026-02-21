@@ -19,43 +19,43 @@ fun App() {
     MaterialTheme(colorScheme = if(isSystemInDarkMode()) darkColorScheme() else lightColorScheme()) {
         // Navigation state
         var currentScreen by remember { mutableStateOf(Screen.SinglePlayer) }
-        SinglePlayerScreen()
-//        Scaffold(
-//            bottomBar = {
-//                NavigationBar {
-//                    NavigationBarItem(
-//                        icon = { Icon(Icons.Default.Home, contentDescription = "Single Player") },
-//                        label = { Text("Single Player") },
-//                        selected = currentScreen == Screen.SinglePlayer,
-//                        onClick = { currentScreen = Screen.SinglePlayer }
-//                    )
-//                    NavigationBarItem(
-//                        icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Multi Player") },
-//                        label = { Text("Multi Player") },
-//                        selected = currentScreen == Screen.MultiPlayer,
-//                        onClick = { currentScreen = Screen.MultiPlayer }
-//                    )
-//                    NavigationBarItem(
-//                        icon = { Icon(Icons.Default.Subtitles, contentDescription = "Video Attachment") },
-//                        label = { Text("Video Attachment") },
-//                        selected = currentScreen == Screen.VideoAttachmentPlayer,
-//                        onClick = { currentScreen = Screen.VideoAttachmentPlayer }
-//                    )
-//                }
-//            }
-//        ) { paddingValues ->
-//            Box(
-//                modifier = Modifier
-//                    .fillMaxSize()
-//                    .padding(paddingValues)
-//                    .background(MaterialTheme.colorScheme.background)
-//            ) {
-//                when (currentScreen) {
-//                    Screen.SinglePlayer -> SinglePlayerScreen()
-//                    Screen.MultiPlayer -> MultiPlayerScreen()
-//                    Screen.VideoAttachmentPlayer -> VideoAttachmentPlayerScreen()
-//                }
-//            }
-//        }
+
+        Scaffold(
+            bottomBar = {
+                NavigationBar {
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.Home, contentDescription = "Single Player") },
+                        label = { Text("Single Player") },
+                        selected = currentScreen == Screen.SinglePlayer,
+                        onClick = { currentScreen = Screen.SinglePlayer }
+                    )
+                    NavigationBarItem(
+                        icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Multi Player") },
+                        label = { Text("Multi Player") },
+                        selected = currentScreen == Screen.MultiPlayer,
+                        onClick = { currentScreen = Screen.MultiPlayer }
+                    )
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.Subtitles, contentDescription = "Video Attachment") },
+                        label = { Text("Video Attachment") },
+                        selected = currentScreen == Screen.VideoAttachmentPlayer,
+                        onClick = { currentScreen = Screen.VideoAttachmentPlayer }
+                    )
+                }
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
+                when (currentScreen) {
+                    Screen.SinglePlayer -> SinglePlayerScreen()
+                    Screen.MultiPlayer -> MultiPlayerScreen()
+                    Screen.VideoAttachmentPlayer -> VideoAttachmentPlayerScreen()
+                }
+            }
+        }
     }
 }

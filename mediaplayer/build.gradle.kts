@@ -13,25 +13,21 @@ plugins {
     alias(libs.plugins.vannitktech.maven.publish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.kotlinCocoapods)
-    id("maven-publish")
 }
 
 group = "io.github.kdroidfilter.composemediaplayer"
 
-val ref = System.getenv("GITHUB_REF") ?: "8.0.0"
-val version = "1.0.0-pushcroll-SNAPSHOT"
-
-//    if (ref.startsWith("refs/tags/")) {
-//    val tag = ref.removePrefix("refs/tags/")
-//    if (tag.startsWith("v")) tag.substring(1) else tag
-//} else "dev"
+val ref = System.getenv("GITHUB_REF") ?: ""
+val version = if (ref.startsWith("refs/tags/")) {
+    val tag = ref.removePrefix("refs/tags/")
+    if (tag.startsWith("v")) tag.substring(1) else tag
+} else "dev"
 
 
 tasks.withType<DokkaTask>().configureEach {
     moduleName.set("Compose Media Player")
     offlineMode.set(true)
 }
-
 
 kotlin {
     jvmToolchain(17)
@@ -54,7 +50,7 @@ kotlin {
         iosX64(),
     ).forEach { target ->
         target.compilations.getByName("main") {
-            // Tahe default file path is src/nativeInterop/cinterop/<interop-name>.def
+            // The default file path is src/nativeInterop/cinterop/<interop-name>.def
             val nskeyvalueobserving by cinterops.creating
         }
     }
@@ -99,6 +95,7 @@ kotlin {
             implementation(libs.androidx.media3.ui)
             implementation(libs.androidx.activityCompose)
             implementation(libs.androidx.core)
+            implementation(libs.androidx.lifecycle.runtime.ktx)
         }
 
         androidUnitTest.dependencies {

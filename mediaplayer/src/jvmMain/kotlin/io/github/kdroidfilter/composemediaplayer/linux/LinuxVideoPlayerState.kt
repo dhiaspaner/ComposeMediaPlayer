@@ -35,7 +35,6 @@ import org.freedesktop.gstreamer.event.SeekFlags
 import org.freedesktop.gstreamer.event.SeekType
 import org.freedesktop.gstreamer.message.MessageType
 import com.sun.jna.Pointer
-import io.github.kdroidfilter.composemediaplayer.PipController
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
@@ -59,8 +58,6 @@ import kotlin.math.pow
  */
 @Stable
 class LinuxVideoPlayerState : VideoPlayerState {
-
-    override lateinit var pipController: PipController
 
     companion object {
         // Flag to enable text subtitles (GST_PLAY_FLAG_TEXT)

@@ -90,7 +90,7 @@ fun VideoPlayerSurfaceImpl(
                         (playerState as? DefaultVideoPlayerState)?.let { state ->
                             val playerLayer = layer as? AVPlayerLayer ?: return@let
                             state.playerLayer = playerLayer
-                            state.pipController.pipController = AVPictureInPictureController(playerLayer = playerLayer)
+                            state.pipController = AVPictureInPictureController(playerLayer = playerLayer)
                         }
                     }
                 },
