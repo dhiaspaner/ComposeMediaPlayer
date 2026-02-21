@@ -94,14 +94,17 @@ private fun VideoPlayerSurfaceInternal(
 
     // Single source of truth — no rememberSaveable, drive directly from playerState
     val isFullscreen = playerState.isFullscreen
+    val isPipFullScreen = (playerState as? DefaultVideoPlayerState)?.isPipFullScreen ?: false
 
     AutoPipEffect(playerState = playerState)
 
     // Exit fullscreen when returning from PiP
     LaunchedEffect(playerState.isPipActive) {
-        if (!playerState.isPipActive && playerState.isFullscreen) {
-            delay(300)
-            playerState.toggleFullscreen()
+        (playerState as? DefaultVideoPlayerState)?.let { playerState ->
+            if (!playerState.isPipActive && playerState.isPipFullScreen) {
+                delay(300)
+                playerState.togglePipFullScreen()
+            }
         }
     }
 
@@ -116,7 +119,7 @@ private fun VideoPlayerSurfaceInternal(
         }
     }
 
-    if (isFullscreen) {
+    if (isFullscreen || isPipFullScreen) {
         FullScreenLayout(
             modifier = Modifier,
             onDismissRequest = {

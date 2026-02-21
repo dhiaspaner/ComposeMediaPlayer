@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.graphics.Color
@@ -267,6 +268,8 @@ open class DefaultVideoPlayerState : VideoPlayerState {
         set(value) {
             _isFullscreen = value
         }
+
+    var isPipFullScreen by mutableStateOf(false)
 
     // Time tracking
     private var _currentTime by mutableDoubleStateOf(0.0)
@@ -678,6 +681,10 @@ open class DefaultVideoPlayerState : VideoPlayerState {
         }
     }
 
+    fun togglePipFullScreen() {
+        isPipFullScreen = !isPipFullScreen
+    }
+
 
     override suspend fun enterPip(): PipResult {
         if (!isPipSupported) return PipResult.NotSupported
@@ -686,8 +693,8 @@ open class DefaultVideoPlayerState : VideoPlayerState {
 
         val currentActivity = activity.get() ?: return PipResult.NotPossible
 
-        if (!isFullscreen) {
-            toggleFullscreen()
+        if (!isPipFullScreen) {
+            togglePipFullScreen()
             // Wait for Compose to recompose with fullscreen layout
             withFrameNanos { }
             withFrameNanos { } // two frames to be safe
